@@ -12,12 +12,6 @@
 (define (get-room rooms room)
   (hash-ref rooms room))
 
-(define (enter-room state room-id)
-  (begin
-    (show "------------------------")
-    (show (room-description (get-room (game-state-rooms state) room-id)))
-    (struct-copy game-state state [current-room room-id])))
-
 (define (default-prompt [text "meta.human> "])
   (let ([result (begin
                   (display text)
@@ -40,19 +34,42 @@
   ((prompt-parameter) text))
 (define (show . args)
   (apply (show-parameter) args))
+(define (say name . args)
+  (apply show (cons (string-append name ":") args)))
+(define (title title)
+  (let ([underline (build-string (string-length title) (lambda (_) #\*))])
+    (begin
+      (show underline)
+      (show title)
+      (show underline)
+      )))
 
 (define (display-player player)
   (begin
     (show (player-name player))
     (show "HP" (player-health player))))
 
+(define (describe-room room)
+  (begin
+      (show (room-description room))
+      (cond
+        [(not (empty? (room-adjacent room)))
+         (for ([connection (room-adjacent room)])
+           (show (first connection)))])))
+
+(define (enter-room state room-id)
+  (let ([room (get-room (game-state-rooms state) room-id)])
+    (begin
+      (describe-room room)
+      (struct-copy game-state state [current-room room-id]))))
+
 (define (create-character-loop state)
   (begin
     (show "You're next up in line.")
-    (show "Customs Officer: What is your name?")
+    (say "Customs Officer" "What is your name?")
     (let ([name (prompt "name> ")])
       (begin
-        (show "Customs Officer: Very well, proceed on.")
+        (say "Customs Officer" "Very well, proceed on.")
         (game-loop
          (enter-room
           (struct-copy game-state state [player (player name 100 100)])
@@ -62,13 +79,28 @@
     )
   )
 
+(define (get-command)
+  (let* ([command (prompt)]
+         [parts (string-split command)])
+    (if (empty? parts)
+        (get-command)
+        (cons (string-downcase (first parts)) (rest parts)))))
+
+(define (help)
+  (begin
+    (title "Help")))
+
+(define (describe state [args '()])
+  (if (empty? args)
+      (describe-room (get-room (game-state-rooms state) (game-state-current-room state)))
+      (show "I don't understand.")))
+
 (define (game-loop state)
   (begin
-    (let ([command (prompt)])
-      (match command
-        ["help" (begin
-                  (show "Help")
-                  )]
+    (let ([command (get-command)])
+      (match (first command)
+        ["help" (help)]
+        ["describe" (describe state)]
         ["status" (display-player (game-state-player state))]
         [_ (show "Invalid command.")])
       (game-loop state)
