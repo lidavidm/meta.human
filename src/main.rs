@@ -8,7 +8,15 @@ mod player;
 
 use ncurses::*;
 
+use ui::input::InputHandler;
 use ui::window::{ScrollingOutput, WindowLike};
+
+struct DefaultInputHandler {
+
+}
+
+impl InputHandler for DefaultInputHandler {
+}
 
 fn main() {
     let locale_conf = LcCategory::all;
@@ -21,6 +29,8 @@ fn main() {
     curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 
     refresh();
+
+    let input_handler = DefaultInputHandler {};
 
     let (width, height) = ui::term_size();
     let main_width = 2 * width / 3;
@@ -62,7 +72,7 @@ fn main() {
     title_win.print(0, &format!("Location: {:20} 17:07:17 MON 25 MAR 2048", state.room.name));
 
     loop {
-        let input = input_win.input().unwrap();
+        let input = input_handler.get_line(&input_win).unwrap();
 
         match input.as_ref() {
             "exit" => break,

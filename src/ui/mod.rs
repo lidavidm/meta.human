@@ -1,5 +1,6 @@
 use ncurses;
 
+pub mod input;
 pub mod window;
 
 pub fn term_size() -> (i32, i32) {

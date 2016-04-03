@@ -1,19 +1,12 @@
 use std::cmp::{max, min};
-use std::str::{Utf8Error, from_utf8};
 
 use ncurses::*;
 
-#[derive(Clone,Copy,Debug)]
-pub enum ScrollMode {
-    Wrap,
-    Scroll,
-}
-
 pub struct Margins {
-    top: i32,
-    right: i32,
-    bottom: i32,
-    left: i32,
+    pub top: i32,
+    pub right: i32,
+    pub bottom: i32,
+    pub left: i32,
 }
 
 impl Margins {
@@ -62,7 +55,6 @@ pub trait WindowLike {
         self.refresh()
     }
 
-    // TODO: print, input should be moved to a different trait
     fn print(&mut self, row: i32, text: &str) {
         let margins = self.margins();
         wmove(self.window(), row + margins.top, margins.left);
@@ -71,44 +63,6 @@ pub trait WindowLike {
         wprintw(self.window(), text);
 
         self.refresh()
-    }
-
-    // TODO: there should be a global input handler that can watch for things like mouse events
-    fn input(&mut self) -> Result<String, Utf8Error> {
-        let margins = self.margins();
-
-        curs_set(CURSOR_VISIBILITY::CURSOR_VISIBLE);
-        wmove(self.window(), margins.top, margins.left);
-        self.refresh();
-
-        let mut buf = vec![];
-
-        let mut ch = getch();
-        let mut x = margins.left;
-        while ch != KEY_ENTER && ch != 13 {
-            match ch {
-                // Backspace
-                127 => {
-                    buf.pop();
-                    x = max(x - 1, margins.left);
-                    wmove(self.window(), margins.top, x);
-                    waddch(self.window(), 32);
-                }
-                _ => {
-                    waddch(self.window(), ch as chtype);
-                    buf.push(ch as u8);
-                    x += 1;
-                }
-            }
-            wmove(self.window(), margins.top, x);
-            self.refresh();
-            ch = getch();
-        }
-
-        // TODO: actually save and preserve
-        curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-        self.clear_line();
-        from_utf8(&buf).map(|s| s.to_owned())
     }
 }
 
