@@ -1,5 +1,6 @@
 pub struct Room {
-    description: String,
+    pub name: String,
+    pub description: String,
     // doors: ,
     // characters: ,
     // contents: ,

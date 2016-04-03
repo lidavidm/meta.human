@@ -1,11 +1,10 @@
 use room;
 
-struct World {
+pub struct World {
     // rooms: ,
-    state: State,
 }
 
-struct State {
+pub struct State {
     // player: ,
-    room: room::Room,
+    pub room: room::Room,
 }

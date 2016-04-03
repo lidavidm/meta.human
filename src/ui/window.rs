@@ -3,6 +3,7 @@ use std::str::{Utf8Error, from_utf8};
 
 use ncurses::*;
 
+#[derive(Clone,Copy,Debug)]
 pub enum ScrollMode {
     Wrap,
     Scroll,
@@ -30,14 +31,111 @@ pub struct CursorPos {
     y: i32,
 }
 
+pub trait WindowLike {
+    fn x(&self) -> i32;
+    fn y(&self) -> i32;
+    fn width(&self) -> i32;
+    fn height(&self) -> i32;
+    fn margins(&self) -> &Margins;
+
+    fn cursor_pos(&self) -> CursorPos {
+        let mut x = 0;
+        let mut y = 0;
+        getyx(self.window(), &mut y, &mut x);
+
+        CursorPos {
+            x: x,
+            y: y,
+        }
+    }
+
+    fn window(&self) -> WINDOW;
+    fn refresh(&self);
+
+    fn clear_line(&self) {
+        let cursor = self.cursor_pos();
+        let margins = self.margins();
+        for x in margins.left..self.width() - margins.horizontal() {
+            mvwaddch(self.window(), cursor.y, x, 32);
+        }
+        wmove(self.window(), cursor.y, margins.left);
+        self.refresh()
+    }
+
+    // TODO: print, input should be moved to a different trait
+    fn print(&mut self, row: i32, text: &str) {
+        let margins = self.margins();
+        wmove(self.window(), row + margins.top, margins.left);
+        self.clear_line();
+
+        wprintw(self.window(), text);
+
+        self.refresh()
+    }
+
+    // TODO: there should be a global input handler that can watch for things like mouse events
+    fn input(&mut self) -> Result<String, Utf8Error> {
+        let margins = self.margins();
+
+        curs_set(CURSOR_VISIBILITY::CURSOR_VISIBLE);
+        wmove(self.window(), margins.top, margins.left);
+        self.refresh();
+
+        let mut buf = vec![];
+
+        let mut ch = getch();
+        let mut x = margins.left;
+        while ch != KEY_ENTER && ch != 13 {
+            match ch {
+                // Backspace
+                127 => {
+                    buf.pop();
+                    x = max(x - 1, margins.left);
+                    wmove(self.window(), margins.top, x);
+                    waddch(self.window(), 32);
+                }
+                _ => {
+                    waddch(self.window(), ch as chtype);
+                    buf.push(ch as u8);
+                    x += 1;
+                }
+            }
+            wmove(self.window(), margins.top, x);
+            self.refresh();
+            ch = getch();
+        }
+
+        // TODO: actually save and preserve
+        curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+        self.clear_line();
+        from_utf8(&buf).map(|s| s.to_owned())
+    }
+}
+
+pub trait ScrollingOutput: WindowLike {
+    fn current_row(&self) -> i32;
+    fn advance_row(&mut self);
+    fn append(&mut self, text: &str) {
+        {
+            let margins = self.margins();
+
+            wmove(self.window(), self.current_row() + margins.top, margins.left);
+            self.clear_line();
+
+            wprintw(self.window(), text);
+        }
+
+        self.advance_row();
+        self.refresh();
+    }
+}
+
 pub struct Window {
     x: i32,
     y: i32,
     width: i32,
     height: i32,
     margins: Margins,
-    cursor: CursorPos,
-    scroll_mode: ScrollMode,
     window: WINDOW,
 }
 
@@ -54,21 +152,8 @@ impl Window {
                 right: 0,
                 bottom: 0,
             },
-            cursor: CursorPos {
-                x: 0,
-                y: 0,
-            },
-            scroll_mode: ScrollMode::Wrap,
             window: newwin(height, width, y, x),
         }
-    }
-
-    pub fn cursor_x(&self) -> i32 {
-        self.cursor.x + self.margins.left
-    }
-
-    pub fn cursor_y(&self) -> i32 {
-        self.cursor.y + self.margins.top
     }
 
     pub fn box_(&mut self, v: chtype, h: chtype) {
@@ -78,84 +163,114 @@ impl Window {
         self.margins.bottom = 1;
         box_(self.window, v, h);
     }
+}
 
-    pub fn refresh(&self) {
+impl WindowLike for Window {
+    fn x(&self) -> i32 {
+        self.x
+    }
+
+    fn y(&self) -> i32 {
+        self.y
+    }
+
+    fn width(&self) -> i32 {
+        self.width
+    }
+
+    fn height(&self) -> i32 {
+        self.height
+    }
+
+    fn margins(&self) -> &Margins {
+        &self.margins
+    }
+
+    fn window(&self) -> WINDOW {
+        self.window
+    }
+
+    fn refresh(&self) {
         wrefresh(self.window);
     }
+}
 
-    pub fn clear_line(&mut self) {
-        for x in 0..self.width - self.margins.horizontal() {
-            self.cursor.x = x;
-            mvwaddch(self.window, self.cursor_y(), self.cursor_x(), 32);
-        }
-        self.cursor.x = 0;
-        wmove(self.window, self.cursor_y(), self.cursor_x());
-        self.refresh()
-    }
+pub struct Pad {
+    window: WINDOW,
+    lines: i32,
+    columns: i32,
+    margins: Margins,
+    row: i32,
+}
 
-    pub fn enable_scrolling(&mut self) {
-        scrollok(self.window, true);
-        self.scroll_mode = ScrollMode::Scroll;
-    }
-
-    // TODO: use pads
-    pub fn print(&mut self, text: &str) {
-        wmove(self.window, self.cursor_y(), self.cursor_x());
-        self.clear_line();
-
-        wprintw(self.window, text);
-
-        self.cursor.y = match self.scroll_mode {
-            ScrollMode::Wrap => {
-                // TODO: effective/inner height function
-                if self.cursor.y + 1 >= self.height - self.margins.vertical() {
-                    0
-                }
-                else {
-                    self.cursor.y + 1
-                }
-            }
-            ScrollMode::Scroll => {
-                if self.cursor.y >= self.height - self.margins.vertical() {
-                    wscrl(self.window, 1);
-                }
-                self.cursor.y + 1
+impl Pad {
+    pub fn new(lines: i32, columns: i32) -> Pad {
+        Pad {
+            window: newpad(lines, columns),
+            lines: lines,
+            columns: columns,
+            margins: Margins {
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
             },
-        };
-        self.refresh()
+            row: 0,
+        }
     }
 
-    pub fn input(&mut self) -> Result<String, Utf8Error> {
-        curs_set(CURSOR_VISIBILITY::CURSOR_VISIBLE);
-        wmove(self.window, self.cursor_y(), self.cursor_x());
-        self.refresh();
+    pub fn render(&self, window: &WindowLike) {
+        let margins = window.margins();
+        let scroll = max(0, self.row - window.height());
+        prefresh(self.window(),
+                 margins.top + scroll, margins.left,
+                 self.margins.top + window.y(),
+                 self.margins.left + window.x(),
+                 window.y() + window.height() - margins.vertical() - 1,
+                 window.x() + window.width() - margins.horizontal() - 1);
+    }
+}
 
-        let mut buf = vec![];
+impl WindowLike for Pad {
+    // TODO:
+    fn x(&self) -> i32 {
+        0
+    }
 
-        let mut ch = getch();
-        while ch != KEY_ENTER && ch != 13 {
-            match ch {
-                // Backspace
-                127 => {
-                    buf.pop();
-                    self.cursor.x = max(self.cursor.x - 1, self.margins.left);
-                    wmove(self.window, self.cursor_y(), self.cursor_x());
-                    waddch(self.window, 32);
-                }
-                _ => {
-                    waddch(self.window, ch as chtype);
-                    buf.push(ch as u8);
-                    self.cursor.x += 1;
-                }
-            }
-            wmove(self.window, self.cursor_y(), self.cursor_x());
-            self.refresh();
-            ch = getch();
+    fn y(&self) -> i32 {
+        0
+    }
+
+    fn width(&self) -> i32 {
+        self.columns
+    }
+
+    fn height(&self) -> i32 {
+        self.lines
+    }
+
+    fn margins(&self) -> &Margins {
+        &self.margins
+    }
+
+    fn window(&self) -> WINDOW {
+        self.window
+    }
+
+    fn refresh(&self) {
+
+    }
+}
+
+impl ScrollingOutput for Pad {
+    fn current_row(&self) -> i32 {
+        self.row
+    }
+
+    fn advance_row(&mut self) {
+        if self.row == self.height() - (self.margins().vertical() + 1) {
+            wscrl(self.window(), 1);
         }
-
-        // TODO: actually save and preserve
-        curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-        self.clear_line();
-        from_utf8(&buf).map(|s| s.to_owned())
+        self.row = min(self.row + 1, self.height() - self.margins().vertical())
     }
 }
