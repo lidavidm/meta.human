@@ -3,5 +3,6 @@ name = "metahuman"
 version = "0.1.0"
 authors = ["David Li <li.davidm96@gmail.com>"]
 
-[dependencies]
-ncurses = "5.80.0"
+[dependencies.ncurses]
+version = "5.80.0"
+features = ["wide"]
