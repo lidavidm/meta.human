@@ -1,6 +1,9 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use chrono;
+use chrono::offset::TimeZone;
+
 use room;
 
 use ui;
@@ -74,8 +77,9 @@ impl UILayout {
         self.output.borrow_mut().render(&self.main);
     }
 
-    fn set_title(&self, left: &str) {
-        self.title.borrow_mut().print(0, left);
+    fn set_title(&self, left: &str, right: &str) {
+        let width = (ui::term_size().0 * 2 / 3) as usize - right.len() - 3;
+        self.title.borrow_mut().print(0, &format!("{:<width$} {}", left, right, width=width));
     }
 
     fn display(&self, text: &str) {
@@ -92,6 +96,7 @@ pub struct Game {
     pub world: World,
     ui: UILayout,
     pub room: String,
+    pub time: chrono::DateTime<chrono::UTC>,
 }
 
 impl Game {
@@ -100,11 +105,16 @@ impl Game {
             ui: UILayout::new(),
             world: World::new(),
             room: "NO_ROOM_SET".to_owned(),
+            time: chrono::UTC.ymd(2048, 1, 2).and_hms(7, 7, 0),
         }
     }
 
     fn current_room(&self) -> &room::Room {
         self.world.get_room(&self.room).expect(&format!("Invalid room {}", self.room))
+    }
+
+    fn current_time(&self) -> String {
+        format!("{}", self.time.format("%a %d %b %Y %H:%M"))
     }
 
     pub fn enter_room(&mut self, room: &str) {
@@ -114,7 +124,7 @@ impl Game {
         self.room = room.into();
         let room = self.current_room();
         self.ui.display(&room.description);
-        self.ui.set_title(&room.name);
+        self.ui.set_title(&room.name, &self.current_time());
     }
 
     pub fn main(&mut self) {
