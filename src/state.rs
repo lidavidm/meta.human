@@ -32,7 +32,7 @@ struct UILayout {
     main: Window,
     output: RefCell<Pad>,
     character: Window,
-    title: Window,
+    title: RefCell<Window>,
     input: Window,
 }
 
@@ -43,10 +43,10 @@ impl UILayout {
         let mut border_win = Window::new(0, 3, main_width, height - 6);
         border_win.box_(0, 0);
         border_win.refresh();
-        let mut main_win = Window::new(1, 4, main_width - 2, height - 8);
+        let main_win = Window::new(1, 4, main_width - 2, height - 8);
         main_win.refresh();
 
-        let mut output = Pad::new(100, 80);
+        let output = Pad::new(100, 80);
 
         let mut char_info = Window::new(main_width, 0, width - main_width, height);
         char_info.box_(0, 0);
@@ -65,13 +65,17 @@ impl UILayout {
             main: main_win,
             output: RefCell::new(output),
             character: char_info,
-            title: title_win,
+            title: RefCell::new(title_win),
             input: input_win,
         }
     }
 
     fn refresh(&self) {
         self.output.borrow_mut().render(&self.main);
+    }
+
+    fn set_title(&self, left: &str) {
+        self.title.borrow_mut().print(0, left);
     }
 
     fn display(&self, text: &str) {
@@ -108,7 +112,9 @@ impl Game {
             panic!("Entered room {} that doesn't exist", room);
         }
         self.room = room.into();
-        self.ui.display(&self.current_room().description);
+        let room = self.current_room();
+        self.ui.display(&room.description);
+        self.ui.set_title(&room.name);
     }
 
     pub fn main(&mut self) {
