@@ -75,6 +75,7 @@ impl UILayout {
     }
 
     fn refresh(&self) {
+        self.title.borrow_mut().refresh();
         self.output.borrow_mut().render(&self.main);
     }
 
@@ -84,7 +85,6 @@ impl UILayout {
             - 1  // TODO: why?
             - self.title.borrow_mut().margins().horizontal() as usize;
         self.title.borrow_mut().print(0, &format!("{:<width$} {}", left, right, width=width));
-        self.title.borrow_mut().refresh();
     }
 
     fn display(&self, text: &str) {
@@ -127,6 +127,7 @@ impl Game {
             None
         }
         else {
+            self.time = self.time.add(chrono::Duration::seconds(30));
             self.room = room.into();
             self.describe_room();
             self.update_title();
@@ -177,7 +178,6 @@ impl Game {
                 },
             }
 
-            self.time.add(chrono::Duration::seconds(30));
             self.update_title();
             self.ui.refresh();
         }
