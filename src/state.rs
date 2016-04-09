@@ -117,24 +117,48 @@ impl Game {
         format!("{}", self.time.format("%a %d %b %Y %H:%M"))
     }
 
-    pub fn enter_room(&mut self, room: &str) {
+    pub fn enter_room(&mut self, room: &str) -> Option<()> {
         if !self.world.rooms.contains_key(room) {
-            panic!("Entered room {} that doesn't exist", room);
+            None
         }
-        self.room = room.into();
-        let room = self.current_room();
-        self.ui.display(&room.description);
-        self.ui.set_title(&room.name, &self.current_time());
+        else {
+            self.room = room.into();
+            let room = self.current_room();
+            self.ui.display(&room.description);
+            self.ui.set_title(&room.name, &self.current_time());
+            Some(())
+        }
     }
 
     pub fn main(&mut self) {
         self.ui.refresh();
         loop {
             let input = self.ui.get_line(&self.ui.input).unwrap();
+            let parts: Vec<&str> = input.split_whitespace().collect();
+            let parts: Option<(&&str, &[&str])> = parts.split_first();
+            if parts.is_none() {
+                continue;
+            }
+            let (command, args) = parts.unwrap();
 
-            match input.as_ref() {
+            match *command {
                 "exit" => break,
                 "describe" => self.ui.display(&self.current_room().description),
+                "go" => {
+                    if args.is_empty() {
+                        self.ui.display("Go where?");
+                    }
+                    else {
+                        let target = args.join(" ");
+                        let result = { self.current_room().find_door(&target).map(|x| x.to_owned()) };
+                        if let Some(room_name) = result {
+                            self.enter_room(&room_name).unwrap();
+                        }
+                        else {
+                            self.ui.display(&format!("Can't go to {}", target));
+                        }
+                    }
+                },
                 _ => {
                     self.ui.display(input.as_ref());
                 },

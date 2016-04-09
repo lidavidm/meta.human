@@ -7,9 +7,16 @@ use assets;
 pub struct Room {
     pub name: String,
     pub description: String,
-    // doors: ,
+    // phrase : room name
+    pub doors: HashMap<String, String>,
     // characters: ,
     // contents: ,
+}
+
+impl Room {
+    pub fn find_door(&self, name: &str) -> Option<&String> {
+        self.doors.get(name)
+    }
 }
 
 impl assets::Decodable for (String, Room) {
@@ -17,10 +24,21 @@ impl assets::Decodable for (String, Room) {
         let id = get_field!(doc, "id", as_str);
         let name = get_field!(doc, "name", as_str);
         let desc = get_field!(doc, "description", as_str);
+        let exits = get_field!(doc, "exits", as_hash);
+
+        let mut doors = HashMap::new();
+
+        for (room_name, exit_names) in exits.iter() {
+            let room_name = as_value!(room_name, as_str).to_owned();
+            for exit_name in as_value!(exit_names, as_vec).iter() {
+                doors.insert(as_value!(exit_name, as_str).to_owned(), room_name.clone());
+            }
+        }
 
         Ok((id.to_owned(), Room {
             name: name.to_owned(),
             description: desc.to_owned(),
+            doors: doors,
         }))
     }
 }

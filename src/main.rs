@@ -37,7 +37,7 @@ fn main() {
 
     let mut game = state::Game::new(state::World::new(rooms));
 
-    game.enter_room("border_office_1");
+    game.enter_room("border_office_1").unwrap();
     game.main();
 
     // output.append("ACT I—HELLO WORLD");
