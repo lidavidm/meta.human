@@ -15,9 +15,9 @@ pub struct World {
 }
 
 impl World {
-    pub fn new() -> World {
+    pub fn new(rooms: HashMap<String, room::Room>) -> World {
         World {
-            rooms: HashMap::new(),
+            rooms: rooms,
         }
     }
 
@@ -100,10 +100,10 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new() -> Game {
+    pub fn new(world: World) -> Game {
         Game {
             ui: UILayout::new(),
-            world: World::new(),
+            world: world,
             room: "NO_ROOM_SET".to_owned(),
             time: chrono::UTC.ymd(2048, 1, 2).and_hms(7, 7, 0),
         }
@@ -139,6 +139,7 @@ impl Game {
                     self.ui.display(input.as_ref());
                 },
             }
+
             self.ui.refresh();
         }
     }
