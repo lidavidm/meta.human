@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::ops::Add;
 
 use chrono;
 use chrono::offset::TimeZone;
@@ -78,12 +79,16 @@ impl UILayout {
     }
 
     fn set_title(&self, left: &str, right: &str) {
-        let width = (ui::term_size().0 * 2 / 3) as usize - right.len() - 3;
+        let width = (ui::term_size().0 * 2 / 3) as usize
+            - right.len()
+            - 1  // TODO: why?
+            - self.title.borrow_mut().margins().horizontal() as usize;
         self.title.borrow_mut().print(0, &format!("{:<width$} {}", left, right, width=width));
+        self.title.borrow_mut().refresh();
     }
 
     fn display(&self, text: &str) {
-        self.output.borrow_mut().append(text);
+        self.output.borrow_mut().append_wrap(text);
     }
 }
 
@@ -123,11 +128,19 @@ impl Game {
         }
         else {
             self.room = room.into();
-            let room = self.current_room();
-            self.ui.display(&room.description);
-            self.ui.set_title(&room.name, &self.current_time());
+            self.describe_room();
+            self.update_title();
             Some(())
         }
+    }
+
+    fn describe_room(&self) {
+        self.ui.display(&self.current_room().annotated_description());
+    }
+
+    fn update_title(&self) {
+        let room = self.current_room();
+        self.ui.set_title(&room.name, &self.current_time());
     }
 
     pub fn main(&mut self) {
@@ -143,7 +156,7 @@ impl Game {
 
             match *command {
                 "exit" => break,
-                "describe" => self.ui.display(&self.current_room().description),
+                "describe" => self.describe_room(),
                 "go" => {
                     if args.is_empty() {
                         self.ui.display("Go where?");
@@ -160,10 +173,12 @@ impl Game {
                     }
                 },
                 _ => {
-                    self.ui.display(input.as_ref());
+                    self.ui.display("Invalid command. Type [help] for help.");
                 },
             }
 
+            self.time.add(chrono::Duration::seconds(30));
+            self.update_title();
             self.ui.refresh();
         }
     }

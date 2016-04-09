@@ -10,11 +10,11 @@ pub struct Margins {
 }
 
 impl Margins {
-    fn horizontal(&self) -> i32 {
+    pub fn horizontal(&self) -> i32 {
         self.left + self.right
     }
 
-    fn vertical(&self) -> i32 {
+    pub fn vertical(&self) -> i32 {
         self.top + self.bottom
     }
 }
@@ -81,6 +81,32 @@ pub trait ScrollingOutput: WindowLike {
 
         self.advance_row();
         self.refresh();
+    }
+
+    fn append_wrap(&mut self, text: &str) {
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let width = (self.width() - self.margins().horizontal()) as usize;
+
+        let mut line = Vec::new();
+        let mut line_width = 0;
+
+        for word in words {
+            if line_width + word.len() + 1 > width {
+                self.append(&line.join(" "));
+                line.drain(..);
+                line_width = 0;
+            }
+            else {
+                line.push(word);
+                line_width += word.len();
+                if line.len() > 1 {
+                    line_width += 1;
+                }
+            }
+        }
+        if !line.is_empty() {
+            self.append(&line.join(" "));
+        }
     }
 }
 

@@ -7,4 +7,10 @@ exits:
 id: border_office_2
 name: Border Office
 description: A woman beckons you over. A slew of papers are laid out on her desk.
+exits:
+  border_office_3: ["over"]
+---
+id: border_office_3
+name: Border Office
+description: She fills out some paperwork and tells you to sign.
 exits: {}

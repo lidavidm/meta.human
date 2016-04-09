@@ -17,6 +17,15 @@ impl Room {
     pub fn find_door(&self, name: &str) -> Option<&String> {
         self.doors.get(name)
     }
+
+    pub fn annotated_description(&self) -> String {
+        let mut description = self.description.clone();
+        for door_name in self.doors.keys() {
+            description = description.replace(door_name, &format!("[{}]", door_name));
+        }
+
+        description
+    }
 }
 
 impl assets::Decodable for (String, Room) {
