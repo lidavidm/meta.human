@@ -56,7 +56,7 @@ pub trait InputHandler {
         while ch != ncurses::KEY_ENTER && ch != 13 {
             match ch {
                 // Backspace
-                127 => {
+                ncurses::KEY_BACKSPACE => {
                     buf.pop();
                     x = max(x - 1, margins.left);
                     ncurses::wmove(window.window(), margins.top, x);
