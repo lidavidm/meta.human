@@ -1,17 +1,5 @@
 use isa;
 
-struct Memory {
-
-}
-
-struct Cache {
-
-}
-
-trait MemoryInterface {
-
-}
-
 struct Interpreter {
     memory_words: usize,
     cache_lines: usize,
@@ -28,7 +16,11 @@ struct Action {
 }
 
 impl Interpreter {
-    fn interpret(&self, program: &[isa::Instruction]) {
+    fn step(&mut self) {
+
+    }
+
+    fn step_back(&mut self) {
 
     }
 }
