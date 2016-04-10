@@ -97,11 +97,11 @@ trait MemoryInterface {
     }
 }
 
-struct Memory {
+pub struct Memory {
     memory: Vec<u32>,
 }
 
-struct Cache {
+pub struct Cache {
     main_memory: Rc<RefCell<Memory>>,
     num_sets: usize,
     sets: Vec<Vec<u32>>,
