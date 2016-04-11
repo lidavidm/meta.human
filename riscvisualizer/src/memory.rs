@@ -104,5 +104,55 @@ pub struct Memory {
 pub struct Cache {
     main_memory: Rc<RefCell<Memory>>,
     num_sets: usize,
+    block_words: usize,
     sets: Vec<Vec<u32>>,
+}
+
+impl Memory {
+    pub fn new(words: usize) -> Memory {
+        Memory {
+            memory: Vec::with_capacity(words),
+        }
+    }
+}
+
+impl MemoryInterface for Memory {
+    fn is_address_accessible(&self, address: types::Address) -> bool {
+        let word_address = address.0 as usize / 4;
+
+        word_address >= 0 && word_address < self.memory.len()
+    }
+
+    fn read_word(&mut self, address: types::Address) -> Result<types::Word> {
+        if self.is_address_accessible(address) {
+            let address = address.0 as usize / 4;
+            Ok(MemoryAccess(types::Word(self.memory[address]), 0))
+        }
+        else {
+            Err(MemoryError::InvalidAddress)
+        }
+    }
+
+    fn write_word(&mut self, address: types::Address, value: types::Word) -> Result<()> {
+        if self.is_address_accessible(address) {
+            let address = address.0 as usize / 4;
+            self.memory[address] = value.0;
+            Ok(MemoryAccess((), 0))
+        }
+        else {
+            Err(MemoryError::InvalidAddress)
+        }
+    }
+}
+
+impl Cache {
+    pub fn new(memory: Rc<RefCell<Memory>>, num_sets: usize, block_words: usize) -> Cache {
+        let sets = vec![vec![0; block_words]; num_sets];
+        Cache {
+            main_memory: memory,
+            num_sets: num_sets,
+            block_words: block_words,
+            sets: Vec::new(),
+        }
+    }
 }

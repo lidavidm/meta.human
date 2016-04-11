@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Clone,Copy,Debug,PartialEq)]
 pub enum Register {
     X0 = 0,
     X1 = 1,
@@ -33,6 +33,40 @@ pub enum Register {
     X30 = 30,
     X31 = 31,
 }
+
+pub const Zero: Register = Register::X0;
+pub const Ra: Register = Register::X1;
+pub const Sp: Register = Register::X2;
+pub const Gp: Register = Register::X3;
+pub const Tp: Register = Register::X4;
+pub const T0: Register = Register::X5;
+pub const T1: Register = Register::X6;
+pub const T2: Register = Register::X7;
+pub const S0: Register = Register::X8;
+pub const Fp: Register = Register::X8;
+pub const S1: Register = Register::X9;
+pub const A0: Register = Register::X10;
+pub const A1: Register = Register::X11;
+pub const A2: Register = Register::X12;
+pub const A3: Register = Register::X13;
+pub const A4: Register = Register::X14;
+pub const A5: Register = Register::X15;
+pub const A6: Register = Register::X16;
+pub const A7: Register = Register::X17;
+pub const S2: Register = Register::X18;
+pub const S3: Register = Register::X19;
+pub const S4: Register = Register::X20;
+pub const S5: Register = Register::X21;
+pub const S6: Register = Register::X22;
+pub const S7: Register = Register::X23;
+pub const S8: Register = Register::X24;
+pub const S9: Register = Register::X25;
+pub const S10: Register = Register::X26;
+pub const S11: Register = Register::X27;
+pub const T3: Register = Register::X28;
+pub const T4: Register = Register::X29;
+pub const T5: Register = Register::X30;
+pub const T6: Register = Register::X31;
 
 impl Register {
     pub fn as_num(self) -> usize {
@@ -78,13 +112,18 @@ impl Register {
     }
 }
 
+#[derive(Clone,Copy,Debug)]
 pub enum UOpcode {
     LUI,
     AUIPC,
 }
+
+#[derive(Clone,Copy,Debug)]
 pub enum UJOpcode {
     JAL,
 }
+
+#[derive(Clone,Copy,Debug)]
 pub enum SBOpcode {
     BEQ,
     BNE,
@@ -93,11 +132,15 @@ pub enum SBOpcode {
     BLTU,
     BGEU,
 }
+
+#[derive(Clone,Copy,Debug)]
 pub enum SOpcode {
     SB,
     SH,
     SW,
 }
+
+#[derive(Clone,Copy,Debug)]
 pub enum IOpcode {
     JALR,
     LB,
@@ -113,6 +156,8 @@ pub enum IOpcode {
     ANDI,
     SCALL,
 }
+
+#[derive(Clone,Copy,Debug)]
 pub enum ROpcode {
     ADD,
     SUB,
@@ -125,12 +170,15 @@ pub enum ROpcode {
     OR,
     AND,
 }
+
+#[derive(Clone,Copy,Debug)]
 pub enum RShiftOpcode {
     SLLI,
     SRLI,
     SRAI,
 }
 
+#[derive(Debug)]
 pub enum Instruction {
     RShift {
         opcode: RShiftOpcode,
