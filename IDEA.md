@@ -20,3 +20,8 @@ Idea: cyberpunk text adventure with programming
 > our creator has thought of it. And you can do anything our creator
 > allows, so long as you can think of it.
 > Let us do battle. We shall see—does free will matter?
+
+## Useful things
+
+- http://foicica.com/scinterm/
+- https://sites.google.com/site/broguegame/home

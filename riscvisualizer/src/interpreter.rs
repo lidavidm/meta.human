@@ -35,14 +35,31 @@ pub struct Interpreter<'a> {
     cache: memory::Cache,
     program: &'a [isa::Instruction],
     pc: usize,
+    actions: Vec<Action>,
 }
 
-struct Action {
+pub struct Action {
     // pc: before after
-    // read registers
-    // written register(s)
+    pub pc: (usize, usize),
+    // read registers - register and value read
+    pub read_registers: Vec<(isa::Register, types::Word)>,
+    // written register - register, old value, value written
+    pub written_register: Option<(isa::Register, types::Word, types::Word)>,
     // read memory
     // written memory
+}
+
+fn register_action1<F>(pc: usize, register_file: &mut RegisterFile, reg: isa::Register, callback: F) -> Action
+    where F: Fn(types::Word) -> (isa::Register, types::Word) {
+    let input = register_file.read_word(reg);
+    let (target, output) = callback(input);
+    let original = register_file.read_word(target);
+    register_file.write_word(target, output);
+    Action {
+        pc: (pc, pc + 1),
+        read_registers: vec![(reg, input)],
+        written_register: Some((target, original, output)),
+    }
 }
 
 impl<'a> Interpreter<'a> {
@@ -55,22 +72,27 @@ impl<'a> Interpreter<'a> {
             cache: memory::Cache::new(memory.clone(), 4, 4),
             program: program,
             pc: 0,
+            actions: Vec::new(),
         }
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> &Action {
         let instruction = &self.program[self.pc];
         match instruction {
             &isa::Instruction::I {
-                opcode: opcode,
-                rd: rd,
-                rs1: rs1,
-                imm: imm,
+                opcode,
+                rd,
+                rs1,
+                imm,
             } => {
                 match opcode {
                     isa::IOpcode::ADDI => {
-                        let rs1 = self.register_file.read_word(rs1);
-                        self.register_file.write_word(rd, rs1 + imm);
+                        let action = register_action1(self.pc, &mut self.register_file, rs1, |rs1| {
+                            (rd, rs1 + imm)
+                        });
+                        self.pc = action.pc.1;
+                        self.actions.push(action);
+                        &self.actions.last().unwrap()
                     },
 
                     _ => {

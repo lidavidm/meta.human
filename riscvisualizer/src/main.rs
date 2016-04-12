@@ -17,7 +17,12 @@ fn main() {
         }
     ];
     let mut interpreter = interpreter::Interpreter::new(256, &program);
-    interpreter.step();
+    {
+        let action = interpreter.step();
+        if let Some((register, before, after)) = action.written_register {
+            println!("Register {:?} changed from {} to {}", register, before, after);
+        }
+    }
 
     println!("{:?}", interpreter.registers());
 }
