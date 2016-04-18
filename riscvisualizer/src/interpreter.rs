@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use isa;
-use memory;
-use types;
+use memory::{self, MemoryInterface};
+use types::{self, IsaType};
 
 #[derive(Debug)]
 pub struct RegisterFile {
@@ -35,31 +35,25 @@ pub struct Interpreter<'a> {
     cache: memory::Cache,
     program: &'a [isa::Instruction],
     pc: usize,
-    actions: Vec<Action>,
+    steps: Vec<Step>,
 }
 
-pub struct Action {
+pub enum Action {
+    // written register - register, old value, value written
+    WriteRegister(isa::Register, types::Word, types::Word),
+
+    Error {
+
+    }
+}
+
+pub struct Step {
     // pc: before after
     pub pc: (usize, usize),
     // read registers - register and value read
     pub read_registers: Vec<(isa::Register, types::Word)>,
-    // written register - register, old value, value written
-    pub written_register: Option<(isa::Register, types::Word, types::Word)>,
     // read memory
-    // written memory
-}
-
-fn register_action1<F>(pc: usize, register_file: &mut RegisterFile, reg: isa::Register, callback: F) -> Action
-    where F: Fn(types::Word) -> (isa::Register, types::Word) {
-    let input = register_file.read_word(reg);
-    let (target, output) = callback(input);
-    let original = register_file.read_word(target);
-    register_file.write_word(target, output);
-    Action {
-        pc: (pc, pc + 1),
-        read_registers: vec![(reg, input)],
-        written_register: Some((target, original, output)),
-    }
+    pub action: Action,
 }
 
 impl<'a> Interpreter<'a> {
@@ -72,11 +66,11 @@ impl<'a> Interpreter<'a> {
             cache: memory::Cache::new(memory.clone(), 4, 4),
             program: program,
             pc: 0,
-            actions: Vec::new(),
+            steps: Vec::new(),
         }
     }
 
-    pub fn step(&mut self) -> &Action {
+    pub fn step(&mut self) -> &Step {
         let instruction = &self.program[self.pc];
         match instruction {
             &isa::Instruction::I {
@@ -85,20 +79,71 @@ impl<'a> Interpreter<'a> {
                 rs1,
                 imm,
             } => {
-                match opcode {
-                    isa::IOpcode::ADDI => {
-                        let action = register_action1(self.pc, &mut self.register_file, rs1, |rs1| {
-                            (rd, rs1 + imm)
-                        });
-                        self.pc = action.pc.1;
-                        self.actions.push(action);
-                        &self.actions.last().unwrap()
-                    },
+                use isa::IOpcode::*;
 
-                    _ => {
-                        panic!("Unsupported instruction {:?}", self.program[self.pc]);
+                let rs1 = self.register_file.read_word(rs1);
+                let rd_orig = self.register_file.read_word(rd);
+                let mut stall = 0;
+                let action =
+                    match opcode {
+                        LW => {
+                            let result = self.memory.borrow_mut().read_word(rs1 + imm);
+                            if let Ok(read) = result {
+                                stall = read.1;
+                                Action::WriteRegister(rd, rd_orig, read.0)
+                            }
+                            else {
+                                Action::Error {}
+                            }
+                        }
+                        ADDI => {
+                            Action::WriteRegister(rd, rd_orig, rs1 + imm)
+                        }
+                        SLTI => {
+                            if rs1.as_signed() < types::SignedWord(imm as i32) {
+                                Action::WriteRegister(rd, rd_orig, types::Word(1))
+                            }
+                            else {
+                                Action::WriteRegister(rd, rd_orig, types::Word(0))
+                            }
+                        }
+                        SLTIU => {
+                            if rs1 < types::Word(imm) {
+                                Action::WriteRegister(rd, rd_orig, types::Word(1))
+                            }
+                            else {
+                                Action::WriteRegister(rd, rd_orig, types::Word(0))
+                            }
+                        }
+                        XORI => {
+                            Action::WriteRegister(rd, rd_orig, rs1 ^ imm)
+                        }
+                        ORI => {
+                            Action::WriteRegister(rd, rd_orig, rs1 | imm)
+                        }
+                        ANDI => {
+                            Action::WriteRegister(rd, rd_orig, rs1 & imm)
+                        }
+                        _ => {
+                            panic!("Unsupported instruction");
+                        }
+                    };
+
+                match action {
+                    Action::WriteRegister(target, _, value) => {
+                        self.register_file.write_word(target, value);
                     }
-                }
+
+                    _ => {},
+                };
+                let step = Step {
+                    pc: (self.pc, self.pc + 1),
+                    read_registers: vec![(rd, rd_orig)],
+                    action: action,
+                };
+                self.pc += 1;
+                self.steps.push(step);
+                &self.steps.last().unwrap()
             },
 
             _ => {

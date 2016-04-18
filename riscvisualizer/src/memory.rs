@@ -9,10 +9,10 @@ pub enum MemoryError {
     InvalidAddress,
 }
 
-pub struct MemoryAccess<T>(T, usize);
+pub struct MemoryAccess<T>(pub T, pub usize);
 pub type Result<T> = ::std::result::Result<MemoryAccess<T>, MemoryError>;
 
-trait MemoryInterface {
+pub trait MemoryInterface {
     // fn prefetch(&mut self, address: types::Address);
     // fn invalidate(&mut self, address: types::Address);
 

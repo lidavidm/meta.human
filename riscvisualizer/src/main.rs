@@ -13,14 +13,38 @@ fn main() {
             opcode: isa::IOpcode::ADDI,
             rd: isa::T0,
             rs1: isa::Zero,
-            imm: 0xFF,
+            imm: 0xF0,
+        },
+        isa::Instruction::I {
+            opcode: isa::IOpcode::ADDI,
+            rd: isa::T0,
+            rs1: isa::T0,
+            imm: 0x0F,
         }
     ];
     let mut interpreter = interpreter::Interpreter::new(256, &program);
     {
-        let action = interpreter.step();
-        if let Some((register, before, after)) = action.written_register {
-            println!("Register {:?} changed from {} to {}", register, before, after);
+        let step = interpreter.step();
+        match step.action {
+            interpreter::Action::WriteRegister(register, before, after) => {
+                println!("Register {:?} changed from {} to {}", register, before, after);
+            }
+
+            _ => {
+
+            }
+        }
+    }
+    {
+        let step = interpreter.step();
+        match step.action {
+            interpreter::Action::WriteRegister(register, before, after) => {
+                println!("Register {:?} changed from {} to {}", register, before, after);
+            }
+
+            _ => {
+
+            }
         }
     }
 
