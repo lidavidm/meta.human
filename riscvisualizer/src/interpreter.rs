@@ -1,5 +1,8 @@
+use std;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::slice;
+
 
 use isa;
 use memory::{self, MemoryInterface};
@@ -35,25 +38,32 @@ pub struct Interpreter<'a> {
     cache: memory::Cache,
     program: &'a [isa::Instruction],
     pc: usize,
-    steps: Vec<Step>,
+    actions: Vec<Action>,
 }
 
 pub enum Action {
+    // read register - register, old value
+    ReadRegister(isa::Register, types::Word),
+
     // written register - register, old value, value written
     WriteRegister(isa::Register, types::Word, types::Word),
+
+    // PC before, PC after
+    Jump(usize, usize),
+
+    // stall
+
+    // read cache
+
+    // read memory
+
+    // write cache
+
+    // write memory
 
     Error {
 
     }
-}
-
-pub struct Step {
-    // pc: before after
-    pub pc: (usize, usize),
-    // read registers - register and value read
-    pub read_registers: Vec<(isa::Register, types::Word)>,
-    // read memory
-    pub action: Action,
 }
 
 impl<'a> Interpreter<'a> {
@@ -66,11 +76,15 @@ impl<'a> Interpreter<'a> {
             cache: memory::Cache::new(memory.clone(), 4, 4),
             program: program,
             pc: 0,
-            steps: Vec::new(),
+            actions: Vec::new(),
         }
     }
 
-    pub fn step(&mut self) -> &Step {
+    pub fn iter(&self) -> std::slice::Iter<Action> {
+        self.actions.iter()
+    }
+
+    pub fn step(&mut self) {
         let instruction = &self.program[self.pc];
         match instruction {
             &isa::Instruction::I {
@@ -81,7 +95,10 @@ impl<'a> Interpreter<'a> {
             } => {
                 use isa::IOpcode::*;
 
+                let rs1_reg = rs1;
                 let rs1 = self.register_file.read_word(rs1);
+                self.actions.push(Action::ReadRegister(rs1_reg, rs1));
+
                 let rd_orig = self.register_file.read_word(rd);
                 let mut stall = 0;
                 let action =
@@ -136,14 +153,10 @@ impl<'a> Interpreter<'a> {
 
                     _ => {},
                 };
-                let step = Step {
-                    pc: (self.pc, self.pc + 1),
-                    read_registers: vec![(rd, rd_orig)],
-                    action: action,
-                };
+
+                self.actions.push(action);
+                self.actions.push(Action::Jump(self.pc, self.pc + 1));
                 self.pc += 1;
-                self.steps.push(step);
-                &self.steps.last().unwrap()
             },
 
             _ => {

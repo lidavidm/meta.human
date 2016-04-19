@@ -23,23 +23,21 @@ fn main() {
         }
     ];
     let mut interpreter = interpreter::Interpreter::new(256, &program);
-    {
-        let step = interpreter.step();
-        match step.action {
-            interpreter::Action::WriteRegister(register, before, after) => {
-                println!("Register {:?} changed from {} to {}", register, before, after);
+    interpreter.step();
+    interpreter.step();
+
+    for action in interpreter.iter() {
+        match *action {
+            interpreter::Action::ReadRegister(register, value) => {
+                println!("Read register {:?}: {}", register, value);
             }
 
-            _ => {
-
+            interpreter::Action::WriteRegister(register, _, after) => {
+                println!("Write register {:?}: {}", register, after);
             }
-        }
-    }
-    {
-        let step = interpreter.step();
-        match step.action {
-            interpreter::Action::WriteRegister(register, before, after) => {
-                println!("Register {:?} changed from {} to {}", register, before, after);
+
+            interpreter::Action::Jump(_, after) => {
+                println!("PC is {}", after);
             }
 
             _ => {
