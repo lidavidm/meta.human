@@ -179,6 +179,7 @@ pub enum RShiftOpcode {
 }
 
 #[derive(Debug)]
+// TODO: should use Word types not u32, etc
 pub enum Instruction {
     RShift {
         opcode: RShiftOpcode,

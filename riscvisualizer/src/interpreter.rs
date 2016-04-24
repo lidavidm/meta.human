@@ -49,9 +49,11 @@ pub enum Action {
     WriteRegister(isa::Register, types::Word, types::Word),
 
     // PC before, PC after
+    // Also EndOfInstruction
     Jump(usize, usize),
 
     // stall
+    Stall(usize),
 
     // read cache
 
@@ -86,8 +88,8 @@ impl<'a> Interpreter<'a> {
 
     pub fn step(&mut self) {
         let instruction = &self.program[self.pc];
-        match instruction {
-            &isa::Instruction::I {
+        match *instruction {
+            isa::Instruction::I {
                 opcode,
                 rd,
                 rs1,
@@ -103,6 +105,46 @@ impl<'a> Interpreter<'a> {
                 let mut stall = 0;
                 let action =
                     match opcode {
+                        LB => {
+                            let result = self.memory.borrow_mut().read_byte(rs1 + imm);
+                            if let Ok(read) = result {
+                                stall = read.1;
+                                Action::WriteRegister(rd, rd_orig, read.0.as_word())
+                            }
+                            else {
+                                Action::Error {}
+                            }
+                        }
+                        LH => {
+                            let result = self.memory.borrow_mut().read_halfword(rs1 + imm);
+                            if let Ok(read) = result {
+                                stall = read.1;
+                                Action::WriteRegister(rd, rd_orig, read.0.as_word())
+                            }
+                            else {
+                                Action::Error {}
+                            }
+                        }
+                        LBU => {
+                            let result = self.memory.borrow_mut().read_byte(rs1 + imm);
+                            if let Ok(read) = result {
+                                stall = read.1;
+                                Action::WriteRegister(rd, rd_orig, read.0.as_signed_word().as_word())
+                            }
+                            else {
+                                Action::Error {}
+                            }
+                        }
+                        LHU => {
+                            let result = self.memory.borrow_mut().read_halfword(rs1 + imm);
+                            if let Ok(read) = result {
+                                stall = read.1;
+                                Action::WriteRegister(rd, rd_orig, read.0.as_signed_word().as_word())
+                            }
+                            else {
+                                Action::Error {}
+                            }
+                        }
                         LW => {
                             let result = self.memory.borrow_mut().read_word(rs1 + imm);
                             if let Ok(read) = result {
@@ -146,6 +188,10 @@ impl<'a> Interpreter<'a> {
                         }
                     };
 
+                if stall > 0 {
+                    self.actions.push(Action::Stall(stall));
+                }
+
                 match action {
                     Action::WriteRegister(target, _, value) => {
                         self.register_file.write_word(target, value);
@@ -157,7 +203,101 @@ impl<'a> Interpreter<'a> {
                 self.actions.push(action);
                 self.actions.push(Action::Jump(self.pc, self.pc + 1));
                 self.pc += 1;
-            },
+            }
+
+            isa::Instruction::RShift {
+                opcode,
+                rd,
+                rs1,
+                shamt,
+            } => {
+                use isa::RShiftOpcode::*;
+
+                let rs1_orig = self.register_file.read_word(rs1);
+                let rd_orig = self.register_file.read_word(rd);
+                self.actions.push(Action::ReadRegister(rs1, rs1_orig));
+
+                let result = match opcode {
+                    SLLI => {
+                        rs1_orig << shamt
+                    }
+                    SRLI => {
+                        rs1_orig >> shamt
+                    }
+                    SRAI => {
+                        (rs1_orig.as_signed() >> (shamt as i32)).as_word()
+                    }
+                };
+
+                self.register_file.write_word(rd, result);
+                self.actions.push(Action::WriteRegister(rd, rd_orig, result));
+                self.actions.push(Action::Jump(self.pc, self.pc + 1));
+                self.pc += 1;
+            }
+
+            isa::Instruction::R {
+                opcode,
+                rd,
+                rs1,
+                rs2,
+            } => {
+                use isa::ROpcode::*;
+
+                let rs1_orig = self.register_file.read_word(rs1);
+                let rs2_orig = self.register_file.read_word(rs2);
+                let rd_orig = self.register_file.read_word(rd);
+                self.actions.push(Action::ReadRegister(rs1, rs1_orig));
+                self.actions.push(Action::ReadRegister(rs2, rs2_orig));
+
+                // TODO: use wrapping ops, etc
+                let result = match opcode {
+                    ADD => {
+                        rs1_orig.wrapping_add(rs2_orig)
+                    }
+                    SUB => {
+                        rs1_orig.wrapping_sub(rs2_orig)
+                    }
+                    SLL => {
+                        rs1_orig << rs2_orig
+                    }
+                    SLT => {
+                        if rs1_orig.as_signed() < rs2_orig.as_signed() {
+                            types::Word(1)
+                        }
+                        else {
+                            types::Word(0)
+                        }
+                    }
+                    SLTU => {
+                        if rs1_orig < rs2_orig {
+                            types::Word(1)
+                        }
+                        else {
+                            types::Word(0)
+                        }
+                    }
+                    XOR => {
+                        rs1_orig ^ rs2_orig
+                    }
+                    SRL => {
+                        rs1_orig >> rs2_orig
+                    }
+                    SRA => {
+                        (rs1_orig.as_signed() >> rs2_orig.as_signed()).as_word()
+                    }
+                    OR => {
+                        rs1_orig | rs2_orig
+                    }
+                    AND => {
+                        rs1_orig & rs2_orig
+                    }
+                };
+
+                self.register_file.write_word(rd, result);
+                self.actions.push(Action::WriteRegister(rd, rd_orig, result));
+                self.actions.push(Action::Jump(self.pc, self.pc + 1));
+                self.pc += 1;
+            }
 
             _ => {
                 panic!("Unsupported instruction {:?}", self.program[self.pc]);
