@@ -1,3 +1,5 @@
+use types::*;
+
 #[derive(Clone,Copy,Debug,PartialEq)]
 pub enum Register {
     X0 = 0,
@@ -203,13 +205,13 @@ pub enum Instruction {
         opcode: SOpcode,
         rs1: Register,
         rs2: Register,
-        imm: u32,
+        imm: SignedWord,
     },
     SB {
         opcode: SBOpcode,
         rs1: Register,
         rs2: Register,
-        imm: u32,
+        imm: isize,
     },
     U {
         opcode: UOpcode,
