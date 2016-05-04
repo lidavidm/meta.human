@@ -12,6 +12,12 @@ pub enum MemoryError {
 pub struct MemoryAccess<T>(pub T, pub usize);
 pub type Result<T> = ::std::result::Result<MemoryAccess<T>, MemoryError>;
 
+impl<T> MemoryAccess<T> where T: IsaType {
+    pub fn as_word(self) -> MemoryAccess<types::Word> {
+        MemoryAccess(self.0.as_word(), self.1)
+    }
+}
+
 pub trait MemoryInterface {
     // fn prefetch(&mut self, address: types::Address);
     // fn invalidate(&mut self, address: types::Address);
@@ -19,7 +25,7 @@ pub trait MemoryInterface {
     fn is_address_accessible(&self, address: types::Address) -> bool;
 
     fn read_word(&mut self, address: types::Address) -> Result<types::Word>;
-    fn write_word(&mut self, address: types::Address, value: types::Word) -> Result<()>;
+    fn write_word(&mut self, address: types::Address, value: types::Word) -> Result<types::Word>;
 
     // TODO: check address more thoroughly
     // TODO: get rid of panics
@@ -30,15 +36,15 @@ pub trait MemoryInterface {
 
         match result {
             Ok(MemoryAccess(word, cycles)) => Ok(MemoryAccess(match offset {
-                0 => (word & 0xFFFF).as_half_word(),
-                2 => ((word & 0xFFFF0000) >> 16).as_half_word(),
+                0 => (word & 0xFFFF).as_halfword(),
+                2 => ((word & 0xFFFF0000) >> 16).as_halfword(),
                 _ => panic!("Invalid halfword offset: address {:x}", address),
             }, cycles)),
             Err(e) => Err(e),
         }
     }
 
-    fn write_halfword(&mut self, address: types::Address, value: types::HalfWord) -> Result<()> {
+    fn write_halfword(&mut self, address: types::Address, value: types::HalfWord) -> Result<types::HalfWord> {
         let result = self.read_word(address);
         let offset = (address & 0b10).0;
         let value = value.as_word();
@@ -50,8 +56,12 @@ pub trait MemoryInterface {
                     2 => (word & 0x0000FFFF) | (value << 16),
                     _ => panic!("Invalid halfword offset: address {:x}", address),
                 };
-                self.write_word(address, value).map(|MemoryAccess((), write_cycles)| {
-                    MemoryAccess((), cycles + write_cycles)
+                self.write_word(address, value).map(|MemoryAccess(v, write_cycles)| {
+                    MemoryAccess(match offset {
+                        0 => word & 0xFFFF,
+                        2 => (word & 0xFFFF0000) >> 16,
+                        _ => panic!("Invalid halfword offset: address {:x}", address),
+                    }.as_halfword(), cycles + write_cycles)
                 })
             },
             Err(e) => Err(e),
@@ -74,7 +84,7 @@ pub trait MemoryInterface {
         }
     }
 
-    fn write_byte(&mut self, address: types::Address, value: types::Byte) -> Result<()> {
+    fn write_byte(&mut self, address: types::Address, value: types::Byte) -> Result<types::Byte> {
         let result = self.read_word(address);
         let offset = (address % 4).0;
         let value = value.as_word();
@@ -88,8 +98,8 @@ pub trait MemoryInterface {
                     3 => (word & !(0xFF000000)) | (value << 24),
                     _ => panic!("Invalid byte offset: {:x}", address),
                 };
-                self.write_word(address, value).map(|MemoryAccess((), write_cycles)| {
-                    MemoryAccess((), cycles + write_cycles)
+                self.write_word(address, value).map(|MemoryAccess(v, write_cycles)| {
+                    MemoryAccess(v.as_bytes()[offset as usize], cycles + write_cycles)
                 })
             },
             Err(e) => Err(e),
@@ -133,11 +143,12 @@ impl MemoryInterface for Memory {
         }
     }
 
-    fn write_word(&mut self, address: types::Address, value: types::Word) -> Result<()> {
+    fn write_word(&mut self, address: types::Address, value: types::Word) -> Result<types::Word> {
         if self.is_address_accessible(address) {
             let address = address.0 as usize / 4;
+            let original = self.memory[address];
             self.memory[address] = value.0;
-            Ok(MemoryAccess((), 0))
+            Ok(MemoryAccess(types::Word(original), 0))
         }
         else {
             Err(MemoryError::InvalidAddress)

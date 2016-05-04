@@ -92,7 +92,7 @@ pub trait IsaType {
     fn as_signed(self) -> Self::Signed;
     fn as_signed_word(self) -> SignedWord;
     fn as_word(self) -> Word;
-    fn as_half_word(self) -> HalfWord;
+    fn as_halfword(self) -> HalfWord;
     fn as_byte(self) -> Byte;
     fn as_address(self) -> Address;
 
@@ -120,7 +120,7 @@ macro_rules! isa_utype {
                 Word(self.0 as u32)
             }
 
-            fn as_half_word(self) -> HalfWord {
+            fn as_halfword(self) -> HalfWord {
                 HalfWord(self.0 as u16)
             }
 
@@ -160,7 +160,7 @@ macro_rules! isa_utype {
                 Word(self.0 as u32)
             }
 
-            fn as_half_word(self) -> HalfWord {
+            fn as_halfword(self) -> HalfWord {
                 HalfWord(self.0 as u16)
             }
 
