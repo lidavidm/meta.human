@@ -5,7 +5,7 @@ use std::slice;
 
 
 use isa;
-use memory::{self, MemoryInterface};
+use memory::{self, MemoryAccess, MemoryInterface};
 use types::{self, IsaType};
 
 #[derive(Debug)]
@@ -61,7 +61,8 @@ pub enum Action {
 
     // write cache
 
-    // write memory
+    // write memory - address, old value, new value
+    WriteMemory(types::Word, types::Word, types::Word),
 
     Error {
 
@@ -183,8 +184,11 @@ impl<'a> Interpreter<'a> {
                         ANDI => {
                             Action::WriteRegister(rd, rd_orig, rs1 & imm)
                         }
-                        _ => {
-                            panic!("Unsupported instruction");
+                        JALR => {
+                            panic!("JALR not implemented");
+                        }
+                        SCALL => {
+                            panic!("JALR not implemented");
                         }
                     };
 
@@ -297,6 +301,68 @@ impl<'a> Interpreter<'a> {
                 self.actions.push(Action::WriteRegister(rd, rd_orig, result));
                 self.actions.push(Action::Jump(self.pc, self.pc + 1));
                 self.pc += 1;
+            }
+
+            isa::Instruction::S {
+                opcode,
+                rs1,
+                rs2,
+                imm,
+            } => {
+                use isa::SOpcode::*;
+                let rs1_orig = self.register_file.read_word(rs1);
+                let rs2_orig = self.register_file.read_word(rs2);
+                self.actions.push(Action::ReadRegister(rs1, rs1_orig));
+                self.actions.push(Action::ReadRegister(rs2, rs2_orig));
+
+                let address = (rs1_orig.as_signed() + imm).as_word();
+                let result = match opcode {
+                    SW => self.memory.borrow_mut().write_word(address, rs2_orig),
+                    SH => self.memory.borrow_mut().write_halfword(address, rs2_orig.as_halfword()).map(MemoryAccess::as_word),
+                    SB => self.memory.borrow_mut().write_byte(address, rs2_orig.as_byte()).map(MemoryAccess::as_word),
+                };
+
+                let action = if let Ok(read) = result {
+                    self.actions.push(Action::Stall(read.1));
+                    Action::WriteMemory(address, read.0, rs2_orig)
+                }
+                else {
+                    Action::Error {}
+                };
+
+                self.actions.push(action);
+                self.actions.push(Action::Jump(self.pc, self.pc + 1));
+                self.pc += 1;
+            }
+
+            isa::Instruction::SB {
+                opcode,
+                rs1,
+                rs2,
+                imm,
+            } => {
+                use isa::SBOpcode::*;
+                let rs1_orig = self.register_file.read_word(rs1);
+                let rs2_orig = self.register_file.read_word(rs2);
+                self.actions.push(Action::ReadRegister(rs1, rs1_orig));
+                self.actions.push(Action::ReadRegister(rs2, rs2_orig));
+
+                let target = if match opcode {
+                    BEQ => rs1_orig == rs2_orig,
+                    BNE => rs1_orig != rs2_orig,
+                    BLT => rs1_orig.as_signed() < rs2_orig.as_signed(),
+                    BGE => rs1_orig.as_signed() >= rs2_orig.as_signed(),
+                    BLTU => rs1_orig < rs2_orig,
+                    BGEU => rs1_orig >= rs2_orig,
+                } {
+                    (self.pc as isize + imm) as usize
+                }
+                else {
+                    self.pc + 1
+                };
+
+                self.actions.push(Action::Jump(self.pc, target));
+                self.pc = target;
             }
 
             _ => {
